@@ -1,5 +1,6 @@
 import { supabase } from './supabase.service';
 
+// Define the input type for creating a car
 export interface CreateCarInput {
   model: string;
   brand: string;
@@ -13,6 +14,8 @@ export interface CreateCarInput {
   current_mileage?: number | undefined;
   image?: string | undefined;
 }
+
+// Service function to create a new car
 
 export async function createCar(input: CreateCarInput) {
   const {
@@ -49,6 +52,30 @@ export async function createCar(input: CreateCarInput) {
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  return data;
+}
+
+// Service function to delete a car by ID
+export async function deleteCar(id: string) {
+  const { data, error } = await supabase
+    .from('car')
+    .delete()
+    .eq('car_id', id)
+    .select()
+    .single();
+
+  if (error) {
+    //PGRST116 is the error code for "Row not found" in PostgREST, which Supabase uses under the hood
+    if ((error as any).code === 'PGRST116') {
+      // Row not found
+      const notFound = new Error('Car not found');
+      (notFound as any).status = 404;
+      throw notFound;
+    }
+
+    throw error;
   }
 
   return data;
