@@ -80,3 +80,44 @@ export async function deleteCar(id: string) {
 
   return data;
 }
+
+// Service function to get a car by ID (not implemented yet)
+export async function getCarById(id: string) {
+  const { data, error } = await supabase
+    .from('car')
+    .select('*')
+    .eq('car_id', id)
+    .single();
+
+  if (error) {
+    if ((error as any).code === 'PGRST116') {
+      // Row not found
+      const notFound = new Error('Car not found');
+      (notFound as any).status = 404;
+      throw notFound;
+    }
+    throw error;
+  }
+  return data;
+}
+
+// Service function to update a car by ID (not implemented yet)
+export async function updateCar(id: string, input: Partial<CreateCarInput>) {
+  const { data, error } = await supabase
+    .from('car')
+    .update(input)
+    .eq('car_id', id)
+    .select()
+    .single();
+
+  if (error) {
+    if ((error as any).code === 'PGRST116') {
+      // Row not found
+      const notFound = new Error('Car not found');
+      (notFound as any).status = 404;
+      throw notFound;
+    }
+    throw error;
+  }
+  return data;
+}

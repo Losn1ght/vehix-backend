@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { createCar, deleteCar, CreateCarInput } from '../services/car.service';
+import {
+  createCar,
+  deleteCar,
+  getCarById,
+  CreateCarInput,
+  updateCar,
+} from '../services/car.service';
 
 // A variable that can be used to validate UUIDs (if needed in the future)
 const uuidRegex =
@@ -68,6 +74,76 @@ export async function deleteCarController(
       return res.status(404).json({ error: err.message });
     }
 
+    next(err);
+  }
+}
+
+export async function getCarController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { id } = req.params;
+
+    if (!id || Array.isArray(id) || !uuidRegex.test(id)) {
+      return res.status(400).json({ error: 'Invalid car ID' });
+    }
+
+    const car = await getCarById(id);
+
+    console.log(`Car with ID ${id} retrieved successfully:`, car);
+
+    return res.status(200).json({
+      message: `Car with ID ${id} retrieved successfully`,
+      data: car,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Controller to handle updating a car by ID (not implemented yet)
+export async function updateCarController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { id } = req.params;
+    const body = req.body as Partial<CreateCarInput>;
+
+    if (!id || Array.isArray(id)) {
+      return res.status(400).json({ error: 'Invalid car ID' });
+    }
+
+    if (!body.brand || !body.model || !body.plate_number) {
+      return res
+        .status(400)
+        .json({ error: 'brand, model, and plate_number are required' });
+    }
+
+    const updatedCar = await updateCar(id, {
+      model: body.model,
+      brand: body.brand,
+      plate_number: body.plate_number,
+      year: body.year,
+      capacity: body.capacity,
+      transmission: body.transmission,
+      fuel_type: body.fuel_type,
+      rate_per_day: body.rate_per_day,
+      status: body.status,
+      current_mileage: body.current_mileage,
+      image: body.image,
+    });
+
+    console.log('Car updated successfully:', updatedCar);
+
+    return res.status(200).json(updatedCar);
+  } catch (err: any) {
+    if (err instanceof Error && (err as any).status === 404) {
+      return res.status(404).json({ error: err.message });
+    }
     next(err);
   }
 }
