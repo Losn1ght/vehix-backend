@@ -1,0 +1,44 @@
+import { Request, Response, NextFunction } from 'express';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+
+// Initialize an independent client for token verification
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Extend Express Request interface to include user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+    }
+  }
+}
+
+export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+       res.status(401).json({ error: 'Missing or malformed Authorization header' });
+       return;
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Verify the JWT with Supabase Auth
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+       res.status(401).json({ error: error?.message || 'Invalid token' });
+       return;
+    }
+
+    // Attach the auth user to the Request
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Auth Middleware Error:', error);
+    res.status(500).json({ error: 'Internal Server Error during authentication' });
+  }
+};
