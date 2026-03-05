@@ -20,3 +20,6 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# OMC state
+.omc/
