@@ -39,7 +39,7 @@ app.get('/api/test-db', async (req: Request, res: Response) => {
       message: 'Supabase credentials detected! Backend is ready to query tables.',
     });
   } catch (error) {
-    res.status(500).json({ error: 'Database query failed', details: error });
+    res.status(500).json({ error: 'Database query failed' });
   }
 });
 
