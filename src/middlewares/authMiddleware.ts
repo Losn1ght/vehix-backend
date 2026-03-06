@@ -1,17 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
-
-// Initialize an independent client for token verification
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 
 // Extend Express Request interface to include user
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: User;
     }
   }
 }
