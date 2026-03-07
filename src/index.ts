@@ -3,8 +3,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { supabase } from './lib/supabase';
-import { requireAuth } from './middlewares/authMiddleware';
+import healthRoutes from './routes/health';
+import protectedRoutes from './routes/protected';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -23,25 +23,9 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'Backend is running' });
-});
-
-// A protected route
-app.get('/api/protected', requireAuth, (req: Request, res: Response) => {
-  res.json({ message: 'Welcome to the protected route!', user: req.user });
-});
-
-// Test the Supabase connection
-app.get('/api/test-db', async (req: Request, res: Response) => {
-  try {
-    res.json({
-      message: 'Supabase credentials detected! Backend is ready to query tables.',
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Database query failed' });
-  }
-});
+// Routes
+app.use('/api', healthRoutes);
+app.use('/api', protectedRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
