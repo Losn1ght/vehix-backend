@@ -10,11 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAuth = void 0;
-const supabase_js_1 = require("@supabase/supabase-js");
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
-// Initialize an independent client for token verification
-const supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey);
+const supabase_1 = require("../lib/supabase");
 const requireAuth = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const authHeader = req.headers.authorization;
@@ -24,9 +20,9 @@ const requireAuth = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
         }
         const token = authHeader.split(' ')[1];
         // Verify the JWT with Supabase Auth
-        const { data: { user }, error } = yield supabase.auth.getUser(token);
+        const { data: { user }, error } = yield supabase_1.supabase.auth.getUser(token);
         if (error || !user) {
-            res.status(401).json({ error: (error === null || error === void 0 ? void 0 : error.message) || 'Invalid token' });
+            res.status(401).json({ error: 'Authentication failed' });
             return;
         }
         // Attach the auth user to the Request
