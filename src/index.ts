@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import healthRoutes from './routes/health';
 import protectedRoutes from './routes/protected';
+import userRoutes from './routes/users';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -26,6 +27,7 @@ app.use('/api', limiter);
 // Routes
 app.use('/api', healthRoutes);
 app.use('/api', protectedRoutes);
+app.use('/api', userRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
