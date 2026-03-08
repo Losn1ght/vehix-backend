@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
+import { logger } from './lib/logger';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -36,19 +37,19 @@ app.use((req: Request, res: Response) => {
 
 // Global error handler
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  console.error('Unhandled error:', err.message);
+  logger.error('Unhandled error: ' + err.message);
   res.status(500).json({ error: 'Internal server error' });
 });
 
 const server = app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
+  logger.info(`Server is running at http://localhost:${port}`);
 });
 
 // Graceful shutdown
 function shutdown() {
-  console.log('Shutting down gracefully...');
+  logger.info('Shutting down gracefully...');
   server.close(() => {
-    console.log('Server closed.');
+    logger.info('Server closed.');
     process.exit(0);
   });
 }

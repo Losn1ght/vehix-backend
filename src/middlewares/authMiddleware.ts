@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { logger } from '../lib/logger';
 
 // Extend Express Request interface to include user
 declare global {
@@ -33,7 +34,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     req.user = user;
     next();
   } catch (error) {
-    console.error('Auth Middleware Error:', error);
+    logger.error('Auth Middleware Error: ' + (error instanceof Error ? error.message : String(error)));
     res.status(500).json({ error: 'Internal Server Error during authentication' });
   }
 };
