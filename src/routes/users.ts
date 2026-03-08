@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middlewares/authMiddleware';
 import { supabaseAdmin } from '../lib/supabase';
+import { logger } from '../lib/logger';
 
 const router = Router();
 
@@ -54,7 +55,7 @@ router.post('/users', requireAuth, async (req: Request, res: Response) => {
 
     res.status(201).json({ user: profile });
   } catch (err) {
-    console.error('Create user error:', err);
+    logger.error('Create user error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -84,7 +85,7 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
 
     res.json({ message: 'Password reset successfully.' });
   } catch (err) {
-    console.error('Reset password error:', err);
+    logger.error('Reset password error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
   }
 });

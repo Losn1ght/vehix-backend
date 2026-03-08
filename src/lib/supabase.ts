@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { logger } from './logger';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
@@ -14,7 +15,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Admin client with service role key — bypasses RLS, use only in trusted server-side code
 if (!supabaseServiceRoleKey) {
-  console.warn('SUPABASE_SERVICE_ROLE_KEY not set — admin user operations will not work.');
+  logger.warn('SUPABASE_SERVICE_ROLE_KEY not set — admin user operations will not work.');
 }
 
 export const supabaseAdmin = supabaseServiceRoleKey
