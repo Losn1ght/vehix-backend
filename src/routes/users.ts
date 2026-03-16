@@ -90,4 +90,81 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
   }
 });
 
+// POST /api/users/:userId/archive — Soft-delete (archive) a user
+router.post('/users/:userId/archive', requireAuth, async (req: Request, res: Response) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
+    return;
+  }
+
+  const userId = req.params.userId as string;
+
+  try {
+    // 1. Set archived_at timestamp on public profile
+    const { error: archiveError } = await supabaseAdmin
+      .from('users')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('user_id', userId);
+
+    if (archiveError) {
+      res.status(400).json({ error: archiveError.message });
+      return;
+    }
+
+    // 2. Ban the auth user so they can't log in
+    const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: 'none',
+      user_metadata: { archived: true },
+    });
+
+    // Ban is best-effort — profile archival is the source of truth
+    if (banError) {
+      logger.error('Failed to ban archived user: ' + banError.message);
+    }
+
+    res.json({ message: 'User archived successfully.' });
+  } catch (err) {
+    logger.error('Archive user error: ' + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/users/:userId/restore — Restore an archived user
+router.post('/users/:userId/restore', requireAuth, async (req: Request, res: Response) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
+    return;
+  }
+
+  const userId = req.params.userId as string;
+
+  try {
+    // 1. Clear archived_at on public profile
+    const { error: restoreError } = await supabaseAdmin
+      .from('users')
+      .update({ archived_at: null })
+      .eq('user_id', userId);
+
+    if (restoreError) {
+      res.status(400).json({ error: restoreError.message });
+      return;
+    }
+
+    // 2. Unban the auth user
+    const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: 'none',
+      user_metadata: { archived: false },
+    });
+
+    if (unbanError) {
+      logger.error('Failed to unban restored user: ' + unbanError.message);
+    }
+
+    res.json({ message: 'User restored successfully.' });
+  } catch (err) {
+    logger.error('Restore user error: ' + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
