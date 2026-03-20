@@ -20,7 +20,6 @@ router.post('/users', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Create the auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -86,6 +85,59 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
     res.json({ message: 'Password reset successfully.' });
   } catch (err) {
     logger.error('Reset password error: ' + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/users/:userId — Soft-delete a user (admin only)
+//
+// TEAM DEPENDENCY: This route requires the `status` column on the `users` table.
+// Run this migration before using this endpoint:
+//   ALTER TABLE users ADD COLUMN status text NOT NULL DEFAULT 'active';
+// Without it, the UPDATE will fail and this route returns 400 with the DB error message.
+//
+// This does NOT remove the row or the auth user. It sets status = 'deleted',
+// which the frontend reads to show the user as deactivated.
+router.delete('/users/:userId', requireAuth, async (req: Request, res: Response) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
+    return;
+  }
+
+  const targetId = req.params.userId as string;
+  const callerId = (req.user as { id: string }).id;
+
+  try {
+    const { data: callerProfile } = await supabaseAdmin
+      .from('users')
+      .select('user_roles ( role_name )')
+      .eq('user_id', callerId)
+      .single();
+
+    const roleData = Array.isArray(callerProfile?.user_roles)
+      ? callerProfile?.user_roles[0]
+      : callerProfile?.user_roles;
+    const callerRole = (roleData as { role_name?: string } | null)?.role_name;
+
+    if (callerRole !== 'admin') {
+      res.status(403).json({ error: 'Admin access required.' });
+      return;
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({ status: 'deleted' })
+      .eq('user_id', targetId);
+
+    if (updateError) {
+      // Surfaces the DB error clearly — likely the status column doesn't exist yet
+      res.status(400).json({ error: updateError.message });
+      return;
+    }
+
+    res.json({ message: 'User deactivated successfully.' });
+  } catch (err) {
+    logger.error('Delete user error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
   }
 });
