@@ -1,23 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middlewares/authMiddleware';
+import { requireRole } from '../middlewares/roleMiddleware';
+import { validate } from '../middlewares/validate';
+import { createUserSchema, resetPasswordSchema } from '../schemas/users';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
 const router = Router();
 
-// POST /api/users — Create a new user (auth + public profile)
-router.post('/users', requireAuth, async (req: Request, res: Response) => {
+// POST /api/users — Create a new user (admin only)
+router.post('/users', requireAuth, requireRole('admin'), validate(createUserSchema), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
   }
 
+  // Body already validated by Zod — safe to destructure
   const { email, password, firstName, lastName, phoneNumber, roleId } = req.body;
-
-  if (!email || !password || !firstName) {
-    res.status(400).json({ error: 'email, password, and firstName are required.' });
-    return;
-  }
 
   try {
     // 1. Create the auth user
@@ -61,7 +60,7 @@ router.post('/users', requireAuth, async (req: Request, res: Response) => {
 });
 
 // POST /api/users/:userId/reset-password — Admin reset a user's password
-router.post('/users/:userId/reset-password', requireAuth, async (req: Request, res: Response) => {
+router.post('/users/:userId/reset-password', requireAuth, requireRole('admin'), validate(resetPasswordSchema), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
@@ -69,11 +68,6 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
 
   const userId = req.params.userId as string;
   const { password } = req.body;
-
-  if (!password) {
-    res.status(400).json({ error: 'password is required.' });
-    return;
-  }
 
   try {
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
@@ -90,8 +84,8 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
   }
 });
 
-// POST /api/users/:userId/archive — Soft-delete (archive) a user
-router.post('/users/:userId/archive', requireAuth, async (req: Request, res: Response) => {
+// POST /api/users/:userId/archive — Soft-delete (archive) a user (admin only)
+router.post('/users/:userId/archive', requireAuth, requireRole('admin'), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
@@ -129,8 +123,8 @@ router.post('/users/:userId/archive', requireAuth, async (req: Request, res: Res
   }
 });
 
-// POST /api/users/:userId/restore — Restore an archived user
-router.post('/users/:userId/restore', requireAuth, async (req: Request, res: Response) => {
+// POST /api/users/:userId/restore — Restore an archived user (admin only)
+router.post('/users/:userId/restore', requireAuth, requireRole('admin'), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
