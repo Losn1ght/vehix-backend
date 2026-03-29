@@ -107,7 +107,7 @@ router.post('/users/:userId/archive', requireAuth, requireRole('admin'), async (
 
     // 2. Ban the auth user so they can't log in
     const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      ban_duration: 'none',
+      ban_duration: '876000h',
       user_metadata: { archived: true },
     });
 

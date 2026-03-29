@@ -29,11 +29,11 @@ router.get('/transactions', requireAuth, attachRole, validate(transactionQuerySc
     if (payment_status) query = query.eq('payment_status', payment_status);
     if (payment_method) query = query.eq('payment_method', payment_method);
 
-    // Role-based filtering
-    if (user_id) {
-      query = query.eq('user_id', user_id);
-    } else if (req.userRole === 'customer') {
+    // Customers always scoped to own data — ignore query param user_id
+    if (req.userRole === 'customer') {
       query = query.eq('user_id', req.user!.id);
+    } else if (user_id) {
+      query = query.eq('user_id', user_id);
     }
 
     const { data, error, count } = await query;
@@ -59,18 +59,24 @@ router.get('/transactions', requireAuth, attachRole, validate(transactionQuerySc
 });
 
 // GET /api/transactions/:id — Get single transaction
-router.get('/transactions/:id', requireAuth, async (req: Request, res: Response) => {
+router.get('/transactions/:id', requireAuth, attachRole, async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
       return;
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('transactions')
       .select('*, reservations ( reservation_id, status, car_id, rental_price ), users ( user_id, first_name, last_name, email )')
-      .eq('transaction_id', req.params.id)
-      .single();
+      .eq('transaction_id', req.params.id);
+
+    // Customers can only view their own transactions
+    if (req.userRole === 'customer') {
+      query = query.eq('user_id', req.user!.id);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       res.status(404).json({ error: 'Transaction not found' });
