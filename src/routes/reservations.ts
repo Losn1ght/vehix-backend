@@ -36,11 +36,11 @@ router.get('/reservations', requireAuth, attachRole, validate(reservationQuerySc
     if (status) query = query.eq('status', status);
     if (car_id) query = query.eq('car_id', car_id);
 
-    // If user_id filter provided, use it; otherwise, customers only see their own
-    if (user_id) {
-      query = query.eq('user_id', user_id);
-    } else if (req.userRole === 'customer') {
+    // Customers always scoped to own data — ignore query param user_id
+    if (req.userRole === 'customer') {
       query = query.eq('user_id', req.user!.id);
+    } else if (user_id) {
+      query = query.eq('user_id', user_id);
     }
 
     const { data, error, count } = await query;
@@ -66,18 +66,24 @@ router.get('/reservations', requireAuth, attachRole, validate(reservationQuerySc
 });
 
 // GET /api/reservations/:id — Get single reservation
-router.get('/reservations/:id', requireAuth, async (req: Request, res: Response) => {
+router.get('/reservations/:id', requireAuth, attachRole, async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
       return;
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('reservations')
       .select('*, car ( * ), users ( user_id, first_name, last_name, email, phone_number )')
-      .eq('reservation_id', req.params.id)
-      .single();
+      .eq('reservation_id', req.params.id);
+
+    // Customers can only view their own reservations
+    if (req.userRole === 'customer') {
+      query = query.eq('user_id', req.user!.id);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       res.status(404).json({ error: 'Reservation not found' });
@@ -92,7 +98,7 @@ router.get('/reservations/:id', requireAuth, async (req: Request, res: Response)
 });
 
 // POST /api/reservations — Create reservation(s) via DB function
-router.post('/reservations', requireAuth, validate(createReservationSchema), async (req: Request, res: Response) => {
+router.post('/reservations', requireAuth, attachRole, validate(createReservationSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -100,6 +106,13 @@ router.post('/reservations', requireAuth, validate(createReservationSchema), asy
     }
 
     const { reservations, voucher_id } = req.body;
+
+    // Customers can only create reservations for themselves
+    if (req.userRole === 'customer') {
+      for (const r of reservations) {
+        r.user_id = req.user!.id;
+      }
+    }
 
     // Call the DB function create_booking_with_voucher
     // This atomically: creates reservations, calculates fees, increments voucher, generates DP reminders

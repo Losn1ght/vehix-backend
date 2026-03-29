@@ -27,7 +27,7 @@ app.use(requestLogger);
 // Security middleware
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Rate limiting — 100 requests per 15 minutes per IP
 const limiter = rateLimit({

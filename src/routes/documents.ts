@@ -27,11 +27,11 @@ router.get('/documents', requireAuth, attachRole, validate(documentQuerySchema, 
 
     if (document_type) query = query.eq('document_type', document_type);
 
-    // Role-based filtering
-    if (user_id) {
-      query = query.eq('user_id', user_id);
-    } else if (req.userRole === 'customer') {
+    // Customers always scoped to own data — ignore query param user_id
+    if (req.userRole === 'customer') {
       query = query.eq('user_id', req.user!.id);
+    } else if (user_id) {
+      query = query.eq('user_id', user_id);
     }
 
     const { data, error, count } = await query;
@@ -57,18 +57,24 @@ router.get('/documents', requireAuth, attachRole, validate(documentQuerySchema, 
 });
 
 // GET /api/documents/:id — Get single document
-router.get('/documents/:id', requireAuth, async (req: Request, res: Response) => {
+router.get('/documents/:id', requireAuth, attachRole, async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
       return;
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('documents')
       .select('*, users ( user_id, first_name, last_name, email )')
-      .eq('document_id', req.params.id)
-      .single();
+      .eq('document_id', req.params.id);
+
+    // Customers can only view their own documents
+    if (req.userRole === 'customer') {
+      query = query.eq('user_id', req.user!.id);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       res.status(404).json({ error: 'Document not found' });
@@ -83,11 +89,16 @@ router.get('/documents/:id', requireAuth, async (req: Request, res: Response) =>
 });
 
 // POST /api/documents — Create document record
-router.post('/documents', requireAuth, validate(createDocumentSchema), async (req: Request, res: Response) => {
+router.post('/documents', requireAuth, attachRole, validate(createDocumentSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
       return;
+    }
+
+    // Customers can only create documents for themselves
+    if (req.userRole === 'customer') {
+      req.body.user_id = req.user!.id;
     }
 
     const { data, error } = await supabaseAdmin
