@@ -19,7 +19,7 @@ export const createReservationSchema = z.object({
 
 export const transitionStatusSchema = z.object({
   new_status: z.enum(['pending', 'confirmed', 'booked', 'completed', 'cancelled', 'rejected']),
-  rejection_reason: z.string().optional().default(''),
+  rejection_reason: z.string().nullable().optional().default(''),
 });
 
 export const recordPaymentSchema = z.object({
