@@ -18,18 +18,18 @@ export const createReservationSchema = z.object({
 });
 
 export const transitionStatusSchema = z.object({
-  new_status: z.enum(['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected']),
+  new_status: z.enum(['pending', 'confirmed', 'booked', 'completed', 'cancelled', 'rejected']),
   rejection_reason: z.string().optional().default(''),
 });
 
 export const recordPaymentSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
-  payment_method: z.enum(['cash', 'gcash', 'bpi', 'bank_transfer']).optional().default('cash'),
+  payment_method: z.enum(['gcash', 'bpi', 'bank_transfer']).optional().default('gcash'),
   reference_number: z.string().optional().default(''),
 });
 
 export const reservationQuerySchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'active', 'completed', 'cancelled', 'rejected']).optional(),
+  status: z.enum(['pending', 'confirmed', 'booked', 'completed', 'cancelled', 'rejected']).optional(),
   user_id: z.string().uuid().optional(),
   car_id: z.string().uuid().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
