@@ -114,6 +114,25 @@ router.post('/reservations', requireAuth, attachRole, validate(createReservation
       }
     }
 
+    // Server-side overlap check before creating reservations
+    for (const r of reservations) {
+      const { data: conflicts } = await supabaseAdmin
+        .from('reservations')
+        .select('reservation_id')
+        .eq('car_id', r.car_id)
+        .in('status', ['pending', 'confirmed', 'booked'])
+        .lte('start_date', r.end_date)
+        .gte('end_date', r.start_date)
+        .limit(1);
+
+      if (conflicts && conflicts.length > 0) {
+        res.status(409).json({
+          error: 'Vehicle is already booked for the selected dates',
+        });
+        return;
+      }
+    }
+
     // Call the DB function create_booking_with_voucher
     // This atomically: creates reservations, calculates fees, increments voucher, generates DP reminders
     const { data, error } = await supabaseAdmin.rpc('create_booking_with_voucher', {
