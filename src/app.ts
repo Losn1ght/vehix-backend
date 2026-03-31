@@ -21,6 +21,9 @@ import { swaggerSpec } from './lib/swagger';
 
 const app = express();
 
+// Trust proxy (Next.js rewrites add X-Forwarded-For)
+app.set('trust proxy', 1);
+
 // Request logging
 app.use(requestLogger);
 
