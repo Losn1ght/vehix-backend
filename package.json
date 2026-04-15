@@ -37,6 +37,8 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@emnapi/core": "1.9.2",
+    "@emnapi/runtime": "1.9.2",
     "@types/cors": "2.8.19",
     "@types/express": "5.0.6",
     "@types/node": "25.3.3",
@@ -46,6 +48,7 @@
     "nodemon": "3.1.14",
     "ts-node": "10.9.2",
     "typescript": "5.9.3",
-    "vitest": "4.1.2"
+    "vitest": "4.1.2",
+    "yaml": "2.8.3"
   }
 }
