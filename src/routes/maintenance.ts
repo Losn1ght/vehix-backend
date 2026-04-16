@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/authMiddleware';
 import { requireRole } from '../middlewares/roleMiddleware';
 import { validate } from '../middlewares/validate';
 import { createMaintenanceSchema, updateMaintenanceSchema, maintenanceQuerySchema } from '../schemas/maintenance';
+import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -32,7 +33,8 @@ router.get('/maintenance', requireAuth, requireRole('admin', 'staff'), validate(
     const { data, error, count } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('List maintenance query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to list maintenance records' });
       return;
     }
 
@@ -52,7 +54,7 @@ router.get('/maintenance', requireAuth, requireRole('admin', 'staff'), validate(
 });
 
 // GET /api/maintenance/:id — Get single maintenance record
-router.get('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), async (req: Request, res: Response) => {
+router.get('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -93,7 +95,8 @@ router.post('/maintenance', requireAuth, requireRole('admin', 'staff'), validate
       .single();
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Create maintenance insert error: ' + error.message);
+      res.status(400).json({ error: 'Failed to create maintenance record' });
       return;
     }
 
@@ -105,7 +108,7 @@ router.post('/maintenance', requireAuth, requireRole('admin', 'staff'), validate
 });
 
 // PUT /api/maintenance/:id — Update maintenance record (admin/staff only)
-router.put('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), validate(updateMaintenanceSchema), async (req: Request, res: Response) => {
+router.put('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), validate(updateMaintenanceSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -121,7 +124,8 @@ router.put('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), valid
       .single();
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Update maintenance query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to update maintenance record' });
       return;
     }
 
@@ -138,7 +142,7 @@ router.put('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), valid
 });
 
 // DELETE /api/maintenance/:id — Archive maintenance record (admin/staff only)
-router.delete('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), async (req: Request, res: Response) => {
+router.delete('/maintenance/:id', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });

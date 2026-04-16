@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/authMiddleware';
 import { attachRole } from '../middlewares/roleMiddleware';
 import { validate } from '../middlewares/validate';
 import { transactionQuerySchema } from '../schemas/transactions';
+import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -39,7 +40,8 @@ router.get('/transactions', requireAuth, attachRole, validate(transactionQuerySc
     const { data, error, count } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('List transactions query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to list transactions' });
       return;
     }
 
@@ -59,7 +61,7 @@ router.get('/transactions', requireAuth, attachRole, validate(transactionQuerySc
 });
 
 // GET /api/transactions/:id — Get single transaction
-router.get('/transactions/:id', requireAuth, attachRole, async (req: Request, res: Response) => {
+router.get('/transactions/:id', requireAuth, attachRole, validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });

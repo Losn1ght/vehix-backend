@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/authMiddleware';
 import { requireRole, attachRole } from '../middlewares/roleMiddleware';
 import { validate } from '../middlewares/validate';
 import { createDocumentSchema, updateDocumentStatusSchema, documentQuerySchema } from '../schemas/documents';
+import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -37,7 +38,8 @@ router.get('/documents', requireAuth, attachRole, validate(documentQuerySchema, 
     const { data, error, count } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('List documents query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to list documents' });
       return;
     }
 
@@ -57,7 +59,7 @@ router.get('/documents', requireAuth, attachRole, validate(documentQuerySchema, 
 });
 
 // GET /api/documents/:id — Get single document
-router.get('/documents/:id', requireAuth, attachRole, async (req: Request, res: Response) => {
+router.get('/documents/:id', requireAuth, attachRole, validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -108,7 +110,8 @@ router.post('/documents', requireAuth, attachRole, validate(createDocumentSchema
       .single();
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Create document insert error: ' + error.message);
+      res.status(400).json({ error: 'Failed to create document' });
       return;
     }
 
@@ -120,7 +123,7 @@ router.post('/documents', requireAuth, attachRole, validate(createDocumentSchema
 });
 
 // PUT /api/documents/:id/status — Approve or reject a document (admin/staff only)
-router.put('/documents/:id/status', requireAuth, requireRole('admin', 'staff'), validate(updateDocumentStatusSchema), async (req: Request, res: Response) => {
+router.put('/documents/:id/status', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), validate(updateDocumentStatusSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });

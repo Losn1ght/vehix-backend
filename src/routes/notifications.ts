@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/authMiddleware';
 import { attachRole } from '../middlewares/roleMiddleware';
 import { validate } from '../middlewares/validate';
 import { notificationQuerySchema } from '../schemas/notifications';
+import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -39,7 +40,8 @@ router.get('/notifications', requireAuth, attachRole, validate(notificationQuery
     const { data, error, count } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('List notifications query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to list notifications' });
       return;
     }
 
@@ -59,7 +61,7 @@ router.get('/notifications', requireAuth, attachRole, validate(notificationQuery
 });
 
 // PUT /api/notifications/:id/read — Mark single notification as read
-router.put('/notifications/:id/read', requireAuth, async (req: Request, res: Response) => {
+router.put('/notifications/:id/read', requireAuth, validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -101,7 +103,8 @@ router.put('/notifications/read-all', requireAuth, async (req: Request, res: Res
       .eq('is_read', false);
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Mark all notifications read error: ' + error.message);
+      res.status(400).json({ error: 'Failed to mark notifications as read' });
       return;
     }
 
@@ -113,7 +116,7 @@ router.put('/notifications/read-all', requireAuth, async (req: Request, res: Res
 });
 
 // DELETE /api/notifications/:id — Delete a notification
-router.delete('/notifications/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete('/notifications/:id', requireAuth, validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });

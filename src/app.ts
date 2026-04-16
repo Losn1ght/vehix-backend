@@ -53,8 +53,10 @@ app.use('/api', documentRoutes);
 app.use('/api', maintenanceRoutes);
 app.use('/api', analyticsRoutes);
 
-// Swagger API docs
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Swagger API docs are useful locally but should not expose API internals in production.
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 // 404 handler
 app.use((req: Request, res: Response) => {
