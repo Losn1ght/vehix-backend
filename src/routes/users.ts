@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/authMiddleware';
 import { requireRole } from '../middlewares/roleMiddleware';
 import { validate } from '../middlewares/validate';
 import { createUserSchema, resetPasswordSchema } from '../schemas/users';
+import { userIdParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -27,7 +28,8 @@ router.post('/users', requireAuth, requireRole('admin'), validate(createUserSche
     });
 
     if (authError) {
-      res.status(400).json({ error: authError.message });
+      logger.error('Create auth user error: ' + authError.message);
+      res.status(400).json({ error: 'Failed to create user' });
       return;
     }
 
@@ -48,7 +50,8 @@ router.post('/users', requireAuth, requireRole('admin'), validate(createUserSche
     if (profileError) {
       // Clean up the orphaned auth user
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      res.status(400).json({ error: profileError.message });
+      logger.error('Create user profile error: ' + profileError.message);
+      res.status(400).json({ error: 'Failed to create user profile' });
       return;
     }
 
@@ -60,7 +63,7 @@ router.post('/users', requireAuth, requireRole('admin'), validate(createUserSche
 });
 
 // POST /api/users/:userId/reset-password — Admin reset a user's password
-router.post('/users/:userId/reset-password', requireAuth, requireRole('admin'), validate(resetPasswordSchema), async (req: Request, res: Response) => {
+router.post('/users/:userId/reset-password', requireAuth, requireRole('admin'), validate(userIdParamSchema, 'params'), validate(resetPasswordSchema), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
@@ -73,7 +76,8 @@ router.post('/users/:userId/reset-password', requireAuth, requireRole('admin'), 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Reset password admin error: ' + error.message);
+      res.status(400).json({ error: 'Failed to reset password' });
       return;
     }
 
@@ -85,7 +89,7 @@ router.post('/users/:userId/reset-password', requireAuth, requireRole('admin'), 
 });
 
 // POST /api/users/:userId/archive — Soft-delete (archive) a user (admin only)
-router.post('/users/:userId/archive', requireAuth, requireRole('admin'), async (req: Request, res: Response) => {
+router.post('/users/:userId/archive', requireAuth, requireRole('admin'), validate(userIdParamSchema, 'params'), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
@@ -101,7 +105,8 @@ router.post('/users/:userId/archive', requireAuth, requireRole('admin'), async (
       .eq('user_id', userId);
 
     if (archiveError) {
-      res.status(400).json({ error: archiveError.message });
+      logger.error('Archive user profile error: ' + archiveError.message);
+      res.status(400).json({ error: 'Failed to archive user' });
       return;
     }
 
@@ -124,7 +129,7 @@ router.post('/users/:userId/archive', requireAuth, requireRole('admin'), async (
 });
 
 // POST /api/users/:userId/restore — Restore an archived user (admin only)
-router.post('/users/:userId/restore', requireAuth, requireRole('admin'), async (req: Request, res: Response) => {
+router.post('/users/:userId/restore', requireAuth, requireRole('admin'), validate(userIdParamSchema, 'params'), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
@@ -140,7 +145,8 @@ router.post('/users/:userId/restore', requireAuth, requireRole('admin'), async (
       .eq('user_id', userId);
 
     if (restoreError) {
-      res.status(400).json({ error: restoreError.message });
+      logger.error('Restore user profile error: ' + restoreError.message);
+      res.status(400).json({ error: 'Failed to restore user' });
       return;
     }
 

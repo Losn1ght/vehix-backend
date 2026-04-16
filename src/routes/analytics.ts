@@ -88,7 +88,8 @@ router.get('/analytics/revenue', requireAuth, requireRole('admin', 'staff'), val
     const { data, error } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Analytics revenue query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to load analytics' });
       return;
     }
 
@@ -131,7 +132,8 @@ router.get('/analytics/fleet', requireAuth, requireRole('admin', 'staff'), async
       .order('vehicle_number', { ascending: true });
 
     if (vErr) {
-      res.status(400).json({ error: vErr.message });
+      logger.error('Analytics fleet vehicle query error: ' + vErr.message);
+      res.status(400).json({ error: 'Failed to load fleet analytics' });
       return;
     }
 
@@ -141,7 +143,8 @@ router.get('/analytics/fleet', requireAuth, requireRole('admin', 'staff'), async
       .select('car_id');
 
     if (rcErr) {
-      res.status(400).json({ error: rcErr.message });
+      logger.error('Analytics fleet reservation query error: ' + rcErr.message);
+      res.status(400).json({ error: 'Failed to load fleet analytics' });
       return;
     }
 

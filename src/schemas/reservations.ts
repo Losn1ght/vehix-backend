@@ -18,7 +18,7 @@ export const createReservationSchema = z.object({
 });
 
 export const transitionStatusSchema = z.object({
-  new_status: z.enum(['pending', 'confirmed', 'booked', 'completed', 'cancelled', 'rejected']),
+  new_status: z.enum(['pending', 'confirmed', 'booked', 'active', 'completed', 'cancelled', 'rejected']),
   rejection_reason: z.string().nullable().optional().default(''),
 });
 
@@ -29,7 +29,7 @@ export const recordPaymentSchema = z.object({
 });
 
 export const reservationQuerySchema = z.object({
-  status: z.enum(['pending', 'confirmed', 'booked', 'completed', 'cancelled', 'rejected']).optional(),
+  status: z.enum(['pending', 'confirmed', 'booked', 'active', 'completed', 'cancelled', 'rejected']).optional(),
   user_id: z.string().uuid().optional(),
   car_id: z.string().uuid().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),

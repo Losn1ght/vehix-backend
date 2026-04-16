@@ -3,6 +3,7 @@ import { requireAuth } from '../middlewares/authMiddleware';
 import { requireRole } from '../middlewares/roleMiddleware';
 import { validate } from '../middlewares/validate';
 import { createVehicleSchema, updateVehicleSchema, vehicleQuerySchema } from '../schemas/vehicles';
+import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -35,7 +36,8 @@ router.get('/vehicles', requireAuth, validate(vehicleQuerySchema, 'query'), asyn
     const { data, error, count } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('List vehicles query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to list vehicles' });
       return;
     }
 
@@ -55,7 +57,7 @@ router.get('/vehicles', requireAuth, validate(vehicleQuerySchema, 'query'), asyn
 });
 
 // GET /api/vehicles/:id — Get single vehicle
-router.get('/vehicles/:id', requireAuth, async (req: Request, res: Response) => {
+router.get('/vehicles/:id', requireAuth, validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -96,7 +98,8 @@ router.post('/vehicles', requireAuth, requireRole('admin', 'staff'), validate(cr
       .single();
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Create vehicle insert error: ' + error.message);
+      res.status(400).json({ error: 'Failed to create vehicle' });
       return;
     }
 
@@ -108,7 +111,7 @@ router.post('/vehicles', requireAuth, requireRole('admin', 'staff'), validate(cr
 });
 
 // PUT /api/vehicles/:id — Update vehicle (admin/staff only)
-router.put('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), validate(updateVehicleSchema), async (req: Request, res: Response) => {
+router.put('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), validate(updateVehicleSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -124,7 +127,8 @@ router.put('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), validate
       .single();
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Update vehicle query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to update vehicle' });
       return;
     }
 
@@ -141,7 +145,7 @@ router.put('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), validate
 });
 
 // DELETE /api/vehicles/:id — Archive vehicle (admin/staff only)
-router.delete('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), async (req: Request, res: Response) => {
+router.delete('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });

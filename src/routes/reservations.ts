@@ -8,6 +8,7 @@ import {
   recordPaymentSchema,
   reservationQuerySchema,
 } from '../schemas/reservations';
+import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
@@ -46,7 +47,8 @@ router.get('/reservations', requireAuth, attachRole, validate(reservationQuerySc
     const { data, error, count } = await query;
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('List reservations query error: ' + error.message);
+      res.status(400).json({ error: 'Failed to list reservations' });
       return;
     }
 
@@ -66,7 +68,7 @@ router.get('/reservations', requireAuth, attachRole, validate(reservationQuerySc
 });
 
 // GET /api/reservations/:id — Get single reservation
-router.get('/reservations/:id', requireAuth, attachRole, async (req: Request, res: Response) => {
+router.get('/reservations/:id', requireAuth, attachRole, validate(uuidParamSchema, 'params'), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -120,7 +122,7 @@ router.post('/reservations', requireAuth, attachRole, validate(createReservation
         .from('reservations')
         .select('reservation_id')
         .eq('car_id', r.car_id)
-        .in('status', ['pending', 'confirmed', 'booked'])
+        .in('status', ['pending', 'confirmed', 'booked', 'active'])
         .lte('start_date', r.end_date)
         .gte('end_date', r.start_date)
         .limit(1);
@@ -142,7 +144,7 @@ router.post('/reservations', requireAuth, attachRole, validate(createReservation
 
     if (error) {
       logger.error('Create reservation RPC error: ' + error.message);
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: 'Failed to create reservation' });
       return;
     }
 
@@ -157,7 +159,7 @@ router.post('/reservations', requireAuth, attachRole, validate(createReservation
 });
 
 // PUT /api/reservations/:id/status — Transition booking status (admin/staff only)
-router.put('/reservations/:id/status', requireAuth, requireRole('admin', 'staff'), validate(transitionStatusSchema), async (req: Request, res: Response) => {
+router.put('/reservations/:id/status', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), validate(transitionStatusSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -175,7 +177,7 @@ router.put('/reservations/:id/status', requireAuth, requireRole('admin', 'staff'
 
     if (error) {
       logger.error('Transition status RPC error: ' + error.message);
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: 'Failed to update reservation status' });
       return;
     }
 
@@ -189,7 +191,7 @@ router.put('/reservations/:id/status', requireAuth, requireRole('admin', 'staff'
 });
 
 // POST /api/reservations/:id/record-payment — Record down payment (admin/staff only)
-router.post('/reservations/:id/record-payment', requireAuth, requireRole('admin', 'staff'), validate(recordPaymentSchema), async (req: Request, res: Response) => {
+router.post('/reservations/:id/record-payment', requireAuth, requireRole('admin', 'staff'), validate(uuidParamSchema, 'params'), validate(recordPaymentSchema), async (req: Request, res: Response) => {
   try {
     if (!supabaseAdmin) {
       res.status(500).json({ error: 'Admin client not configured' });
@@ -208,7 +210,7 @@ router.post('/reservations/:id/record-payment', requireAuth, requireRole('admin'
 
     if (error) {
       logger.error('Record payment RPC error: ' + error.message);
-      res.status(400).json({ error: error.message });
+      res.status(400).json({ error: 'Failed to record payment' });
       return;
     }
 

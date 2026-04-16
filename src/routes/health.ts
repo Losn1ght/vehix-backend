@@ -19,7 +19,7 @@ router.get('/test-db', async (req: Request, res: Response) => {
       .select('*', { count: 'exact', head: true });
 
     if (error) {
-      res.status(500).json({ error: 'Database query failed: ' + error.message });
+      res.status(500).json({ error: 'Database query failed' });
       return;
     }
 
