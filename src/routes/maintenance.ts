@@ -28,7 +28,10 @@ router.get('/maintenance', requireAuth, requireRole('admin', 'staff'), validate(
       .range(offset, offset + limit - 1);
 
     if (car_id) query = query.eq('car_id', car_id);
-    if (service_type) query = query.ilike('service_type', `%${service_type}%`);
+    if (service_type) {
+      const escaped = service_type.replace(/[%_\\]/g, '\\$&');
+      query = query.ilike('service_type', `%${escaped}%`);
+    }
 
     const { data, error, count } = await query;
 

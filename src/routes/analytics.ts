@@ -5,6 +5,7 @@ import { validate } from '../middlewares/validate';
 import { analyticsQuerySchema } from '../schemas/analytics';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
+import { analyticsCache } from '../lib/cache';
 
 const router = Router();
 
@@ -15,6 +16,9 @@ router.get('/analytics/overview', requireAuth, requireRole('admin', 'staff'), as
       res.status(500).json({ error: 'Admin client not configured' });
       return;
     }
+
+    const cached = analyticsCache.get('overview');
+    if (cached) { res.json(cached); return; }
 
     // Run all counts in parallel
     const [reservations, vehicles, users, transactions] = await Promise.all([
@@ -41,7 +45,7 @@ router.get('/analytics/overview', requireAuth, requireRole('admin', 'staff'), as
     // Calculate total revenue
     const totalRevenue = (transactions.data || []).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
 
-    res.json({
+    const result = {
       data: {
         total_bookings: reservations.count ?? 0,
         bookings_by_status: {
@@ -59,7 +63,9 @@ router.get('/analytics/overview', requireAuth, requireRole('admin', 'staff'), as
         total_revenue: totalRevenue,
         total_transactions: transactions.data?.length ?? 0,
       },
-    });
+    };
+    analyticsCache.set('overview', result);
+    res.json(result);
   } catch (err) {
     logger.error('Analytics overview error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
@@ -75,6 +81,10 @@ router.get('/analytics/revenue', requireAuth, requireRole('admin', 'staff'), val
     }
 
     const { start_date, end_date } = (req as any).validatedQuery;
+
+    const cacheKey = `revenue:${start_date || ''}:${end_date || ''}`;
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) { res.json(cached); return; }
 
     let query = supabaseAdmin
       .from('transactions')
@@ -103,13 +113,15 @@ router.get('/analytics/revenue', requireAuth, requireRole('admin', 'staff'), val
       total += amount;
     }
 
-    res.json({
+    const result = {
       data: {
         total_revenue: total,
         transaction_count: data?.length ?? 0,
         by_payment_method: byMethod,
       },
-    });
+    };
+    analyticsCache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     logger.error('Analytics revenue error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
@@ -123,6 +135,9 @@ router.get('/analytics/fleet', requireAuth, requireRole('admin', 'staff'), async
       res.status(500).json({ error: 'Admin client not configured' });
       return;
     }
+
+    const cached = analyticsCache.get('fleet');
+    if (cached) { res.json(cached); return; }
 
     // Get all non-archived vehicles with their reservation counts
     const { data: vehicles, error: vErr } = await supabaseAdmin
@@ -176,7 +191,9 @@ router.get('/analytics/fleet', requireAuth, requireRole('admin', 'staff'), async
       total_maintenance: maintenancePerCar[v.car_id] || 0,
     }));
 
-    res.json({ data: fleetData });
+    const result = { data: fleetData };
+    analyticsCache.set('fleet', result);
+    res.json(result);
   } catch (err) {
     logger.error('Analytics fleet error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });

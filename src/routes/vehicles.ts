@@ -6,6 +6,7 @@ import { createVehicleSchema, updateVehicleSchema, vehicleQuerySchema } from '..
 import { uuidParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
+import { vehicleCache } from '../lib/cache';
 
 const router = Router();
 
@@ -18,6 +19,10 @@ router.get('/vehicles', requireAuth, validate(vehicleQuerySchema, 'query'), asyn
     }
 
     const { status, type, transmission, fuel_type, min_capacity, page, limit } = (req as any).validatedQuery;
+    const cacheKey = `list:${status || ''}:${type || ''}:${transmission || ''}:${fuel_type || ''}:${min_capacity || ''}:${page}:${limit}`;
+    const cached = vehicleCache.get(cacheKey);
+    if (cached) { res.json(cached); return; }
+
     const offset = (page - 1) * limit;
 
     let query = supabaseAdmin
@@ -41,7 +46,7 @@ router.get('/vehicles', requireAuth, validate(vehicleQuerySchema, 'query'), asyn
       return;
     }
 
-    res.json({
+    const result = {
       data,
       pagination: {
         page,
@@ -49,7 +54,9 @@ router.get('/vehicles', requireAuth, validate(vehicleQuerySchema, 'query'), asyn
         total: count ?? 0,
         totalPages: Math.ceil((count ?? 0) / limit),
       },
-    });
+    };
+    vehicleCache.set(cacheKey, result);
+    res.json(result);
   } catch (err) {
     logger.error('List vehicles error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
@@ -103,6 +110,7 @@ router.post('/vehicles', requireAuth, requireRole('admin', 'staff'), validate(cr
       return;
     }
 
+    vehicleCache.clear();
     res.status(201).json({ data });
   } catch (err) {
     logger.error('Create vehicle error: ' + (err instanceof Error ? err.message : String(err)));
@@ -137,6 +145,7 @@ router.put('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), validate
       return;
     }
 
+    vehicleCache.clear();
     res.json({ data });
   } catch (err) {
     logger.error('Update vehicle error: ' + (err instanceof Error ? err.message : String(err)));
@@ -165,6 +174,7 @@ router.delete('/vehicles/:id', requireAuth, requireRole('admin', 'staff'), valid
       return;
     }
 
+    vehicleCache.clear();
     res.json({ message: 'Vehicle archived successfully' });
   } catch (err) {
     logger.error('Archive vehicle error: ' + (err instanceof Error ? err.message : String(err)));
