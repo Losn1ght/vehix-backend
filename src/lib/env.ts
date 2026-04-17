@@ -13,9 +13,10 @@ const required = [
 const optional = [
   { key: 'PORT', default: '3001' },
   { key: 'CORS_ORIGIN', default: 'http://localhost:3000' },
+  { key: 'NODE_ENV', default: 'development' },
+  { key: 'LOG_LEVEL', default: '' },
 ] as const;
 
-// Collect all missing required vars
 const missing = required.filter((key) => !process.env[key]?.trim());
 
 if (missing.length > 0) {
@@ -30,25 +31,29 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// Validate format
 const supabaseUrl = process.env.SUPABASE_URL!;
 if (!supabaseUrl.startsWith('https://') && !supabaseUrl.startsWith('http://')) {
   console.error(`\nInvalid SUPABASE_URL: "${supabaseUrl}" — must start with https://\n`);
   process.exit(1);
 }
 
-// Apply defaults to optional vars
 for (const { key, default: defaultValue } of optional) {
-  if (!process.env[key]) {
+  if (!process.env[key] && defaultValue) {
     process.env[key] = defaultValue;
   }
 }
 
-// Export typed env for use across the codebase
+const nodeEnv = process.env.NODE_ENV || 'development';
+
 export const env = {
   PORT: process.env.PORT || '3001',
   SUPABASE_URL: process.env.SUPABASE_URL!,
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY!,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  NODE_ENV: nodeEnv,
+  LOG_LEVEL: process.env.LOG_LEVEL || (nodeEnv === 'production' ? 'info' : 'debug'),
+  isProduction: nodeEnv === 'production',
+  isDevelopment: nodeEnv === 'development',
+  isTest: nodeEnv === 'test',
 } as const;
