@@ -11,9 +11,37 @@ declare global {
   }
 }
 
+// ── Simple TTL cache for role lookups ────────────────────────────────────
+// Avoids a DB round-trip on every authenticated request.
+const ROLE_CACHE_TTL_MS = 60_000; // 60 seconds
+const roleCache = new Map<string, { role: string; expiresAt: number }>();
+
+function getCachedRole(userId: string): string | undefined {
+  const entry = roleCache.get(userId);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    roleCache.delete(userId);
+    return undefined;
+  }
+  return entry.role;
+}
+
+function setCachedRole(userId: string, role: string): void {
+  roleCache.set(userId, { role, expiresAt: Date.now() + ROLE_CACHE_TTL_MS });
+}
+
+/** Call when a user's role changes (archive, restore, role update) to bust the cache. */
+export function invalidateRoleCache(userId: string): void {
+  roleCache.delete(userId);
+}
+
 // Helper: looks up the user's role and attaches it to req.userRole
 async function lookupRole(req: Request): Promise<string | null> {
   if (!supabaseAdmin || !req.user) return null;
+
+  // Check cache first
+  const cached = getCachedRole(req.user.id);
+  if (cached) return cached;
 
   const { data, error } = await supabaseAdmin
     .from('users')
@@ -28,7 +56,10 @@ async function lookupRole(req: Request): Promise<string | null> {
 
   // Supabase returns the join as an object (single FK) or array
   const userRoles = data.user_roles as unknown as { role_name: string } | { role_name: string }[] | null;
-  return Array.isArray(userRoles) ? userRoles[0]?.role_name ?? null : userRoles?.role_name ?? null;
+  const role = Array.isArray(userRoles) ? userRoles[0]?.role_name ?? null : userRoles?.role_name ?? null;
+
+  if (role) setCachedRole(req.user.id, role);
+  return role;
 }
 
 /**

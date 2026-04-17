@@ -25,7 +25,7 @@ router.get('/analytics/overview', requireAuth, requireRole('admin', 'staff'), as
       supabaseAdmin.from('reservations').select('status', { count: 'exact', head: true }),
       supabaseAdmin.from('car').select('status', { count: 'exact', head: true }).eq('archived', false),
       supabaseAdmin.from('users').select('user_id', { count: 'exact', head: true }),
-      supabaseAdmin.from('transactions').select('amount'),
+      supabaseAdmin.from('transactions').select('amount').eq('payment_status', 'completed'),
     ]);
 
     // Count reservations by status
@@ -155,7 +155,8 @@ router.get('/analytics/fleet', requireAuth, requireRole('admin', 'staff'), async
     // Get reservation counts per car
     const { data: resCounts, error: rcErr } = await supabaseAdmin
       .from('reservations')
-      .select('car_id');
+      .select('car_id')
+      .in('status', ['active', 'completed', 'pending']);
 
     if (rcErr) {
       logger.error('Analytics fleet reservation query error: ' + rcErr.message);

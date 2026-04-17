@@ -4,6 +4,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { logger } from './lib/logger';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import healthRoutes from './routes/health';
 import protectedRoutes from './routes/protected';
@@ -29,6 +30,7 @@ app.use(requestLogger);
 
 // Security middleware
 app.use(helmet());
+app.use(compression());
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
 app.use(express.json({ limit: '1mb' }));
 
