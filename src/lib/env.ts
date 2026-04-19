@@ -15,6 +15,8 @@ const optional = [
   { key: 'CORS_ORIGIN', default: 'http://localhost:3000' },
   { key: 'NODE_ENV', default: 'development' },
   { key: 'LOG_LEVEL', default: '' },
+  { key: 'SINOTRACK_TCP_PORT', default: '8091' },
+  { key: 'SINOTRACK_MAX_CONNECTIONS', default: '50' },
 ] as const;
 
 const missing = required.filter((key) => !process.env[key]?.trim());
@@ -56,4 +58,6 @@ export const env = {
   isProduction: nodeEnv === 'production',
   isDevelopment: nodeEnv === 'development',
   isTest: nodeEnv === 'test',
+  SINOTRACK_TCP_PORT: parseInt(process.env.SINOTRACK_TCP_PORT || '8091', 10),
+  SINOTRACK_MAX_CONNECTIONS: parseInt(process.env.SINOTRACK_MAX_CONNECTIONS || '50', 10),
 } as const;
