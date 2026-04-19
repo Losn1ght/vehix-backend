@@ -12,6 +12,24 @@ declare global {
   }
 }
 
+function getJwtExpiry(token: string): number | null {
+  const [, payload] = token.split('.');
+  if (!payload) return null;
+  try {
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8')) as { exp?: unknown };
+    return typeof decoded.exp === 'number' ? decoded.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function isExpiredTokenError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const message = 'message' in error && typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('expired') || message.includes('jwt expired');
+}
+
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -21,11 +39,20 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     }
 
     const token = authHeader.split(' ')[1];
+    const expiresAt = getJwtExpiry(token);
+    if (expiresAt && expiresAt <= Math.floor(Date.now() / 1000)) {
+       res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+       return;
+    }
 
     // Verify the JWT with Supabase Auth
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+       if (isExpiredTokenError(error)) {
+         res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+         return;
+       }
        res.status(401).json({ error: 'Authentication failed' });
        return;
     }
