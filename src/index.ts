@@ -1,58 +1,53 @@
-import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';
+import app from './app';
 import { logger } from './lib/logger';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import healthRoutes from './routes/health';
-import protectedRoutes from './routes/protected';
-import userRoutes from './routes/users';
+import { startTrackingServer, stopTrackingServer } from './tracking/tcpServer';
 
-const app = express();
 const port = process.env.PORT || 3001;
-
-// Security middleware
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
-app.use(express.json());
-
-// Rate limiting — 100 requests per 15 minutes per IP
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', limiter);
-
-// Routes
-app.use('/api', healthRoutes);
-app.use('/api', protectedRoutes);
-app.use('/api', userRoutes);
-
-// 404 handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ error: 'Not found' });
-});
-
-// Global error handler
-app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Unhandled error: ' + err.message);
-  res.status(500).json({ error: 'Internal server error' });
-});
 
 const server = app.listen(port, () => {
   logger.info(`Server is running at http://localhost:${port}`);
 });
 
-// Graceful shutdown
-function shutdown() {
-  logger.info('Shutting down gracefully...');
+// Start SinoTrack TCP server on separate port
+const trackingServer = startTrackingServer();
+
+// Tune for deployment behind load balancers (ALB, Nginx) — their idle timeout
+// is typically 60s, so the Node server must hold sockets longer to avoid 502s.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+
+let shuttingDown = false;
+
+function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info(`Received ${signal}. Shutting down gracefully...`);
+
+  // Stop both servers
+  stopTrackingServer(trackingServer);
+
   server.close(() => {
     logger.info('Server closed.');
     process.exit(0);
   });
+
+  // Force-exit after 10s if lingering connections block close()
+  setTimeout(() => {
+    logger.error('Forced shutdown after 10s timeout');
+    process.exit(1);
+  }, 10_000).unref();
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Catch errors that bypass Express' error handler (async ticks, native callbacks)
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, 'Unhandled promise rejection');
+  // Do not exit on unhandledRejection in production — log and keep serving.
+});
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception — process unstable, exiting');
+  shutdown('uncaughtException');
+});

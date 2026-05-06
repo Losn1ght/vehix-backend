@@ -1,11 +1,21 @@
-type LogLevel = 'info' | 'warn' | 'error';
+import pino from 'pino';
 
-function formatLog(level: LogLevel, message: string): string {
-  return `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}`;
-}
+const isProd = process.env.NODE_ENV === 'production';
 
-export const logger = {
-  info: (msg: string) => process.stdout.write(formatLog('info', msg) + '\n'),
-  warn: (msg: string) => process.stdout.write(formatLog('warn', msg) + '\n'),
-  error: (msg: string) => process.stderr.write(formatLog('error', msg) + '\n'),
-};
+export const logger = pino({
+  level: process.env.LOG_LEVEL || (isProd ? 'info' : 'debug'),
+  transport: isProd
+    ? undefined
+    : {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
+        },
+      },
+  redact: {
+    paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.token'],
+    censor: '[REDACTED]',
+  },
+});

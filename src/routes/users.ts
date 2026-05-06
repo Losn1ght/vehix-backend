@@ -1,23 +1,23 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middlewares/authMiddleware';
+import { requireRole } from '../middlewares/roleMiddleware';
+import { validate } from '../middlewares/validate';
+import { createUserSchema, resetPasswordSchema } from '../schemas/users';
+import { userIdParamSchema } from '../schemas/common';
 import { supabaseAdmin } from '../lib/supabase';
 import { logger } from '../lib/logger';
 
 const router = Router();
 
-// POST /api/users — Create a new user (auth + public profile)
-router.post('/users', requireAuth, async (req: Request, res: Response) => {
+// POST /api/users — Create a new user (admin only)
+router.post('/users', requireAuth, requireRole('admin'), validate(createUserSchema), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
   }
 
+  // Body already validated by Zod — safe to destructure
   const { email, password, firstName, lastName, phoneNumber, roleId } = req.body;
-
-  if (!email || !password || !firstName) {
-    res.status(400).json({ error: 'email, password, and firstName are required.' });
-    return;
-  }
 
   try {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -27,7 +27,8 @@ router.post('/users', requireAuth, async (req: Request, res: Response) => {
     });
 
     if (authError) {
-      res.status(400).json({ error: authError.message });
+      logger.error('Create auth user error: ' + authError.message);
+      res.status(400).json({ error: 'Failed to create user' });
       return;
     }
 
@@ -48,7 +49,8 @@ router.post('/users', requireAuth, async (req: Request, res: Response) => {
     if (profileError) {
       // Clean up the orphaned auth user
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      res.status(400).json({ error: profileError.message });
+      logger.error('Create user profile error: ' + profileError.message);
+      res.status(400).json({ error: 'Failed to create user profile' });
       return;
     }
 
@@ -60,7 +62,7 @@ router.post('/users', requireAuth, async (req: Request, res: Response) => {
 });
 
 // POST /api/users/:userId/reset-password — Admin reset a user's password
-router.post('/users/:userId/reset-password', requireAuth, async (req: Request, res: Response) => {
+router.post('/users/:userId/reset-password', requireAuth, requireRole('admin'), validate(userIdParamSchema, 'params'), validate(resetPasswordSchema), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
@@ -69,16 +71,12 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
   const userId = req.params.userId as string;
   const { password } = req.body;
 
-  if (!password) {
-    res.status(400).json({ error: 'password is required.' });
-    return;
-  }
-
   try {
     const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
 
     if (error) {
-      res.status(400).json({ error: error.message });
+      logger.error('Reset password admin error: ' + error.message);
+      res.status(400).json({ error: 'Failed to reset password' });
       return;
     }
 
@@ -89,55 +87,81 @@ router.post('/users/:userId/reset-password', requireAuth, async (req: Request, r
   }
 });
 
-// DELETE /api/users/:userId — Soft-delete a user (admin only)
-//
-// TEAM DEPENDENCY: This route requires the `status` column on the `users` table.
-// Run this migration before using this endpoint:
-//   ALTER TABLE users ADD COLUMN status text NOT NULL DEFAULT 'active';
-// Without it, the UPDATE will fail and this route returns 400 with the DB error message.
-//
-// This does NOT remove the row or the auth user. It sets status = 'deleted',
-// which the frontend reads to show the user as deactivated.
-router.delete('/users/:userId', requireAuth, async (req: Request, res: Response) => {
+// POST /api/users/:userId/archive — Soft-delete (archive) a user (admin only)
+router.post('/users/:userId/archive', requireAuth, requireRole('admin'), validate(userIdParamSchema, 'params'), async (req: Request, res: Response) => {
   if (!supabaseAdmin) {
     res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
     return;
   }
 
-  const targetId = req.params.userId as string;
-  const callerId = (req.user as { id: string }).id;
+  const userId = req.params.userId as string;
 
   try {
-    const { data: callerProfile } = await supabaseAdmin
+    // 1. Set archived_at timestamp on public profile
+    const { error: archiveError } = await supabaseAdmin
       .from('users')
-      .select('user_roles ( role_name )')
-      .eq('user_id', callerId)
-      .single();
+      .update({ archived_at: new Date().toISOString() })
+      .eq('user_id', userId);
 
-    const roleData = Array.isArray(callerProfile?.user_roles)
-      ? callerProfile?.user_roles[0]
-      : callerProfile?.user_roles;
-    const callerRole = (roleData as { role_name?: string } | null)?.role_name;
-
-    if (callerRole !== 'admin') {
-      res.status(403).json({ error: 'Admin access required.' });
+    if (archiveError) {
+      logger.error('Archive user profile error: ' + archiveError.message);
+      res.status(400).json({ error: 'Failed to archive user' });
       return;
     }
 
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({ status: 'deleted' })
-      .eq('user_id', targetId);
+    // 2. Ban the auth user so they can't log in
+    const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: '876000h',
+      user_metadata: { archived: true },
+    });
 
-    if (updateError) {
-      // Surfaces the DB error clearly — likely the status column doesn't exist yet
-      res.status(400).json({ error: updateError.message });
-      return;
+    // Ban is best-effort — profile archival is the source of truth
+    if (banError) {
+      logger.error('Failed to ban archived user: ' + banError.message);
     }
 
-    res.json({ message: 'User deactivated successfully.' });
+    res.json({ message: 'User archived successfully.' });
   } catch (err) {
-    logger.error('Delete user error: ' + (err instanceof Error ? err.message : String(err)));
+    logger.error('Archive user error: ' + (err instanceof Error ? err.message : String(err)));
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/users/:userId/restore — Restore an archived user (admin only)
+router.post('/users/:userId/restore', requireAuth, requireRole('admin'), validate(userIdParamSchema, 'params'), async (req: Request, res: Response) => {
+  if (!supabaseAdmin) {
+    res.status(500).json({ error: 'Admin client not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
+    return;
+  }
+
+  const userId = req.params.userId as string;
+
+  try {
+    // 1. Clear archived_at on public profile
+    const { error: restoreError } = await supabaseAdmin
+      .from('users')
+      .update({ archived_at: null })
+      .eq('user_id', userId);
+
+    if (restoreError) {
+      logger.error('Restore user profile error: ' + restoreError.message);
+      res.status(400).json({ error: 'Failed to restore user' });
+      return;
+    }
+
+    // 2. Unban the auth user
+    const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: 'none',
+      user_metadata: { archived: false },
+    });
+
+    if (unbanError) {
+      logger.error('Failed to unban restored user: ' + unbanError.message);
+    }
+
+    res.json({ message: 'User restored successfully.' });
+  } catch (err) {
+    logger.error('Restore user error: ' + (err instanceof Error ? err.message : String(err)));
     res.status(500).json({ error: 'Internal server error' });
   }
 });
